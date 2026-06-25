@@ -17,7 +17,11 @@ package org.springframework.samples.petclinic.owner;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
+
+import com.newrelic.api.agent.NewRelic;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
@@ -114,6 +118,16 @@ class PetController {
 		if (result.hasErrors()) {
 			return VIEWS_PETS_CREATE_OR_UPDATE_FORM;
 		}
+
+		// NR custom attribute and metric for pet creation
+		NewRelic.addCustomParameter("newPetName", pet.getName());
+		// NR custom metric: timeslice metric (query with metricTimesliceName in NRQL)
+		NewRelic.recordMetric("Custom/PetCreated", 1);
+		// NR custom event: NRDB event immediately visible via SELECT * FROM PetCreated
+		Map<String, Object> petCreatedEvent = new HashMap<>();
+		petCreatedEvent.put("petName", pet.getName());
+		petCreatedEvent.put("ownerId", owner.getId());
+		NewRelic.getAgent().getInsights().recordCustomEvent("PetCreated", petCreatedEvent);
 
 		owner.addPet(pet);
 		this.owners.save(owner);

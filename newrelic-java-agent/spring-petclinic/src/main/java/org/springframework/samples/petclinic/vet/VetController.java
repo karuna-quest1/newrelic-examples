@@ -15,7 +15,12 @@
  */
 package org.springframework.samples.petclinic.vet;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import com.newrelic.api.agent.NewRelic;
+import com.newrelic.api.agent.Trace;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +53,15 @@ class VetController {
 		Vets vets = new Vets();
 		Page<Vet> paginated = findPaginated(page);
 		vets.getVetList().addAll(paginated.toList());
+		// NR custom attribute and metric
+		NewRelic.addCustomParameter("vetPage", String.valueOf(page));
+		// NR custom metric: timeslice metric (query with metricTimesliceName in NRQL)
+		NewRelic.recordMetric("Custom/VetPageView", 1);
+		// NR custom event: NRDB event immediately visible via SELECT * FROM VetPageView
+		Map<String, Object> vetPageEvent = new HashMap<>();
+		vetPageEvent.put("page", page);
+		vetPageEvent.put("vetCount", vets.getVetList().size());
+		NewRelic.getAgent().getInsights().recordCustomEvent("VetPageView", vetPageEvent);
 		return addPaginationModel(page, paginated, model);
 	}
 
@@ -60,6 +74,7 @@ class VetController {
 		return "vets/vetList";
 	}
 
+	@Trace
 	private Page<Vet> findPaginated(int page) {
 		int pageSize = 5;
 		Pageable pageable = PageRequest.of(page - 1, pageSize);

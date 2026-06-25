@@ -15,8 +15,13 @@
  */
 package org.springframework.samples.petclinic.owner;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+
+import com.newrelic.api.agent.NewRelic;
+import com.newrelic.api.agent.Trace;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -97,6 +102,16 @@ class OwnerController {
 			owner.setLastName(""); // empty string signifies broadest possible search
 		}
 
+		// NR custom attribute: attach the search lastName to the current transaction
+		NewRelic.addCustomParameter("ownerLastName", owner.getLastName());
+		// NR custom metric: timeslice metric (query with metricTimesliceName in NRQL)
+		NewRelic.recordMetric("Custom/OwnerSearchCount", 1);
+		// NR custom event: NRDB event immediately visible via SELECT * FROM OwnerSearch
+		Map<String, Object> ownerSearchEvent = new HashMap<>();
+		ownerSearchEvent.put("lastName", owner.getLastName());
+		ownerSearchEvent.put("page", page);
+		NewRelic.getAgent().getInsights().recordCustomEvent("OwnerSearch", ownerSearchEvent);
+
 		// find owners by last name
 		Page<Owner> ownersResults = findPaginatedForOwnersLastName(page, owner.getLastName());
 		if (ownersResults.isEmpty()) {
@@ -124,6 +139,7 @@ class OwnerController {
 		return "owners/ownersList";
 	}
 
+	@Trace
 	private Page<Owner> findPaginatedForOwnersLastName(int page, String lastname) {
 		int pageSize = 5;
 		Pageable pageable = PageRequest.of(page - 1, pageSize);
@@ -167,6 +183,12 @@ class OwnerController {
 		Owner owner = optionalOwner.orElseThrow(() -> new IllegalArgumentException(
 				"Owner not found with id: " + ownerId + ". Please ensure the ID is correct "));
 		mav.addObject(owner);
+		// NR custom attribute: attach the owner id being viewed
+		NewRelic.addCustomParameter("viewedOwnerId", String.valueOf(ownerId));
+		// NR custom event: NRDB event immediately visible via SELECT * FROM OwnerView
+		Map<String, Object> ownerViewEvent = new HashMap<>();
+		ownerViewEvent.put("ownerId", ownerId);
+		NewRelic.getAgent().getInsights().recordCustomEvent("OwnerView", ownerViewEvent);
 		return mav;
 	}
 

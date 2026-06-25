@@ -11,6 +11,14 @@ build/
 !**/src/test/**/build/
 newrelic/logs/
 
+### OTel ###
+# Downloaded OTel Java agent JAR (too large for git, download via otel/README.md)
+otel/opentelemetry-javaagent.jar
+
+### Secrets ###
+# Local environment variables — copy from .env.example and fill in values
+.env
+
 ### STS ###
 .attach_pid*
 .apt_generated

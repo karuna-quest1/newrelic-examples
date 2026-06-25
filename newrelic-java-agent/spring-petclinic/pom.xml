@@ -151,6 +151,13 @@
       <artifactId>jakarta.xml.bind-api</artifactId>
     </dependency>
 
+    <!-- New Relic Java Agent API -->
+    <dependency>
+      <groupId>com.newrelic.agent.java</groupId>
+      <artifactId>newrelic-api</artifactId>
+      <version>8.21.0</version>
+    </dependency>
+
   </dependencies>
 
   <build>

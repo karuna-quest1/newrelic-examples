@@ -2,7 +2,7 @@ services:
   mysql:
     image: mysql:9.2
     ports:
-      - "3306:3306"
+      - "13306:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=
       - MYSQL_ALLOW_EMPTY_PASSWORD=true
@@ -11,6 +11,7 @@ services:
       - MYSQL_DATABASE=petclinic
     volumes:
       - "./conf.d:/etc/mysql/conf.d:ro"
+
   postgres:
     image: postgres:17.5
     ports:
@@ -19,3 +20,105 @@ services:
       - POSTGRES_PASSWORD=petclinic
       - POSTGRES_USER=petclinic
       - POSTGRES_DB=petclinic
+
+  # ---------------------------------------------------------------------------
+  # ClickHouse — columnar storage for all OTel signals
+  # The otel-collector writes traces/metrics/logs here via the native port (9000).
+  # HyperDX reads from here to power its UI.
+  #
+  # HTTP interface: http://localhost:8123  (ClickHouse Play UI, debugging)
+  # Native TCP:     localhost:9000         (used by otel-collector + HyperDX)
+  # ---------------------------------------------------------------------------
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse
+    ports:
+      - "8123:8123"    # HTTP interface (ClickHouse Play UI / debugging)
+      - "9000:9000"    # Native TCP — used by otel-collector and HyperDX
+    environment:
+      CLICKHOUSE_DB: otel
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: password
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # MongoDB — stores HyperDX application state (dashboards, alerts, users)
+  # ---------------------------------------------------------------------------
+  mongodb:
+    image: mongo:6
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  # ---------------------------------------------------------------------------
+  # HyperDX — observability UI that reads traces/metrics/logs from ClickHouse
+  #
+  # UI:  http://localhost:8082  (create account on first visit)
+  # API: http://localhost:8000
+  #
+  # NOTE: mapped to host port 8082 (not 8080) because Spring PetClinic also
+  #       runs on 8080 locally.
+  # ---------------------------------------------------------------------------
+  hyperdx:
+    image: hyperdx/hyperdx:latest
+    container_name: hyperdx
+    ports:
+      - "8082:8080"    # HyperDX UI  (remapped: petclinic uses 8080)
+      - "8000:8000"    # HyperDX API
+    environment:
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=password
+      - CLICKHOUSE_DB=otel
+      - MONGO_URI=mongodb://mongodb:27017/hyperdx
+      - NODE_ENV=production
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+
+  # ---------------------------------------------------------------------------
+  # OTel Collector — ClickStack ingest only (dual-write architecture)
+  #
+  # Receives OTLP from the Spring PetClinic app via the OTel Java agent.
+  # Routes to ClickHouse ONLY — New Relic receives data directly from the
+  # NR Java agent (not via this collector).
+  #
+  # Run the app with BOTH agents simultaneously:
+  #   java -javaagent:newrelic/newrelic.jar \
+  #        -javaagent:otel/opentelemetry-javaagent.jar \
+  #        -jar target/spring-petclinic-*.jar
+  #
+  # NR agent env vars (NEW_RELIC_*) are set in the app environment and read
+  # by the NR agent directly — this collector does not need them.
+  # ---------------------------------------------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.102.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-configs/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"    # OTLP gRPC  — OTel agent sends here
+      - "4318:4318"    # OTLP HTTP  — OTel agent sends here (preferred)
+      - "8888:8888"    # Collector's own Prometheus metrics (optional)
+      - "13133:13133"  # Health check endpoint
+    # No NEW_RELIC_LICENSE_KEY here — NR agent handles NR ingest directly.
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+
+volumes:
+  clickhouse_data:
+  mongo_data:

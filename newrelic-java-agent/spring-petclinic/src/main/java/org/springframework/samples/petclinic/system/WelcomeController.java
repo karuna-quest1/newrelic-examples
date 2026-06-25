@@ -19,12 +19,17 @@ package org.springframework.samples.petclinic.system;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 
+import com.newrelic.api.agent.NewRelic;
+import com.newrelic.api.agent.Trace;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 @Controller
 class WelcomeController {
@@ -38,6 +43,13 @@ class WelcomeController {
 
 	@GetMapping("/")
 	public String welcome() throws IOException, InterruptedException {
+		NewRelic.addCustomParameter("welcomeEndpoint", "/");
+		// NR custom metric: timeslice metric (query with metricTimesliceName in NRQL)
+		NewRelic.recordMetric("Custom/WelcomeView", 1);
+		// NR custom event: NRDB event immediately visible via SELECT * FROM WelcomeView
+		Map<String, Object> welcomeEvent = new HashMap<>();
+		welcomeEvent.put("endpoint", "/");
+		NewRelic.getAgent().getInsights().recordCustomEvent("WelcomeView", welcomeEvent);
 		HttpResponse<String> response = HTTP_CLIENT.send(getRequest(), HttpResponse.BodyHandlers.ofString());
 
 		return "welcome";
@@ -47,6 +59,7 @@ class WelcomeController {
 	 * Obtain a HttpRequest object.
 	 * @return HttpRequest
 	 */
+	@Trace
 	private HttpRequest getRequest() {
 		return HttpRequest.newBuilder()
 			.GET()
