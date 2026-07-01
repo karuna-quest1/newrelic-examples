@@ -23,6 +23,9 @@ import java.util.Optional;
 import com.newrelic.api.agent.NewRelic;
 import com.newrelic.api.agent.Trace;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -50,6 +53,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  */
 @Controller
 class OwnerController {
+
+	private static final Logger log = LoggerFactory.getLogger(OwnerController.class);
 
 	private static final String VIEWS_OWNER_CREATE_OR_UPDATE_FORM = "owners/createOrUpdateOwnerForm";
 
@@ -111,6 +116,8 @@ class OwnerController {
 		ownerSearchEvent.put("lastName", owner.getLastName());
 		ownerSearchEvent.put("page", page);
 		NewRelic.getAgent().getInsights().recordCustomEvent("OwnerSearch", ownerSearchEvent);
+
+		log.info("Searching owners with lastName='{}', page={}", owner.getLastName(), page);
 
 		// find owners by last name
 		Page<Owner> ownersResults = findPaginatedForOwnersLastName(page, owner.getLastName());
@@ -189,6 +196,7 @@ class OwnerController {
 		Map<String, Object> ownerViewEvent = new HashMap<>();
 		ownerViewEvent.put("ownerId", ownerId);
 		NewRelic.getAgent().getInsights().recordCustomEvent("OwnerView", ownerViewEvent);
+		log.info("Viewing owner details for ownerId={}", ownerId);
 		return mav;
 	}
 

@@ -22,6 +22,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import com.newrelic.api.agent.NewRelic;
 import com.newrelic.api.agent.Trace;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -33,6 +36,8 @@ import java.util.Map;
 
 @Controller
 class WelcomeController {
+
+	private static final Logger log = LoggerFactory.getLogger(WelcomeController.class);
 
 	private static final String EXAMPLE_COM = "https://example.com/";
 
@@ -51,6 +56,8 @@ class WelcomeController {
 		welcomeEvent.put("endpoint", "/");
 		NewRelic.getAgent().getInsights().recordCustomEvent("WelcomeView", welcomeEvent);
 		HttpResponse<String> response = HTTP_CLIENT.send(getRequest(), HttpResponse.BodyHandlers.ofString());
+
+		log.info("Welcome page accessed, external call status: {}", response.statusCode());
 
 		return "welcome";
 	}

@@ -23,6 +23,9 @@ import java.util.Optional;
 
 import com.newrelic.api.agent.NewRelic;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
 import org.springframework.util.StringUtils;
@@ -47,6 +50,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 @RequestMapping("/owners/{ownerId}")
 class PetController {
+
+	private static final Logger log = LoggerFactory.getLogger(PetController.class);
 
 	private static final String VIEWS_PETS_CREATE_OR_UPDATE_FORM = "pets/createOrUpdatePetForm";
 
@@ -128,6 +133,8 @@ class PetController {
 		petCreatedEvent.put("petName", pet.getName());
 		petCreatedEvent.put("ownerId", owner.getId());
 		NewRelic.getAgent().getInsights().recordCustomEvent("PetCreated", petCreatedEvent);
+
+		log.info("New pet '{}' created for ownerId={}", pet.getName(), owner.getId());
 
 		owner.addPet(pet);
 		this.owners.save(owner);

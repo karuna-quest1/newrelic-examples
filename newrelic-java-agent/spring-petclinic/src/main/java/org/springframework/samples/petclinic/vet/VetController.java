@@ -22,6 +22,9 @@ import java.util.Map;
 import com.newrelic.api.agent.NewRelic;
 import com.newrelic.api.agent.Trace;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,6 +42,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
  */
 @Controller
 class VetController {
+
+	private static final Logger log = LoggerFactory.getLogger(VetController.class);
 
 	private final VetRepository vetRepository;
 
@@ -62,6 +67,7 @@ class VetController {
 		vetPageEvent.put("page", page);
 		vetPageEvent.put("vetCount", vets.getVetList().size());
 		NewRelic.getAgent().getInsights().recordCustomEvent("VetPageView", vetPageEvent);
+		log.info("Vet list requested, page={}, vetCount={}", page, vets.getVetList().size());
 		return addPaginationModel(page, paginated, model);
 	}
 
