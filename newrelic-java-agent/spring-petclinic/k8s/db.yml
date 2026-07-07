@@ -3,6 +3,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: demo-db
+  namespace: petclinic
 type: servicebinding.io/postgresql
 stringData:
   type: "postgresql"
@@ -18,6 +19,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: demo-db
+  namespace: petclinic
 spec:
   ports:
     - port: 5432
@@ -29,6 +31,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: demo-db
+  namespace: petclinic
   labels:
     app: demo-db
 spec:
@@ -62,6 +65,13 @@ spec:
           ports:
             - containerPort: 5432
               name: postgresql
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           livenessProbe:
             tcpSocket:
               port: postgresql

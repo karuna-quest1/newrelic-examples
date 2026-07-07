@@ -1,0 +1,60 @@
+---
+# New Relic Kubernetes Integration
+#
+# Installs the New Relic infrastructure agent + Kubernetes integration via Helm.
+# This gives the full K8s experience in the New Relic UI:
+#   - Kubernetes navigator (cluster/node/pod/container views)
+#   - Infrastructure metrics (node CPU, memory, disk, network)
+#   - K8s events, pod restarts, deployment health
+#   - Pixie live debugging (optional, disabled here for kind compatibility)
+#
+# Prerequisites (run once):
+#   helm repo add newrelic https://helm-charts.newrelic.com
+#   helm repo update
+#
+# To install / upgrade:
+#   NEW_RELIC_LICENSE_KEY=<your-key> envsubst < k8s/newrelic-k8s-integration.yml | kubectl apply -f -
+#
+# Or use the Helm command directly (recommended for production):
+#   helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+#     --namespace newrelic \
+#     --create-namespace \
+#     --set global.licenseKey=$NEW_RELIC_LICENSE_KEY \
+#     --set global.cluster=petclinic-kind \
+#     --set newrelic-infrastructure.privileged=true \
+#     --set kube-state-metrics.enabled=true \
+#     --set nri-kube-events.enabled=true \
+#     --set newrelic-logging.enabled=true \
+#     --set nri-metadata-injection.enabled=true
+#
+# NOTE: This file documents the Helm values. The actual resources are created
+# by Helm — do not apply this file directly with kubectl apply.
+
+# Helm values reference for nri-bundle:
+#
+# global:
+#   licenseKey: "${NEW_RELIC_LICENSE_KEY}"
+#   cluster: "petclinic-kind"
+#   lowDataMode: false          # set true to reduce cardinality / data ingest
+#
+# newrelic-infrastructure:
+#   enabled: true
+#   privileged: true            # required for full node-level metrics
+#
+# kube-state-metrics:
+#   enabled: true               # exposes k8s object metrics (deployments, pods, etc.)
+#
+# nri-kube-events:
+#   enabled: true               # forwards k8s events to New Relic
+#
+# newrelic-logging:
+#   enabled: true               # DaemonSet that tails pod logs → New Relic Logs
+#
+# nri-metadata-injection:
+#   enabled: true               # injects NR metadata into pods so APM ↔ Infra link
+#
+# nri-prometheus:
+#   enabled: false              # enable if you have Prometheus endpoints to scrape
+#
+# newrelic-pixie:
+#   enabled: false              # Pixie not supported on kind clusters
