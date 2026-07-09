@@ -59,19 +59,6 @@ spec:
           volumeMounts:
             - name: newrelic-agent
               mountPath: /newrelic
-        - name: otel-agent-init
-          image: busybox:1.36
-          command:
-            - sh
-            - -c
-            - |
-              wget -q -O /otel/opentelemetry-javaagent.jar \
-                https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v2.4.0/opentelemetry-javaagent.jar || \
-              curl -sL -o /otel/opentelemetry-javaagent.jar \
-                https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v2.4.0/opentelemetry-javaagent.jar
-          volumeMounts:
-            - name: otel-agent
-              mountPath: /otel
       containers:
         - name: workload
           image: petclinic:local
@@ -97,29 +84,17 @@ spec:
                 secretKeyRef:
                   name: newrelic-license
                   key: license-key
-            # Dual-write: both NR agent and OTel agent run simultaneously.
-            # NR agent sends directly to New Relic; OTel agent sends to the
-            # in-cluster OTel Collector which routes to ClickHouse.
+            # Only the New Relic Java agent runs — data goes directly to New Relic.
+            # No OTel collector is deployed. To add ClickHouse dual-write, run the
+            # Shinro otel-config-creator with --kubernetes to generate the OTel
+            # collector manifest and an updated petclinic patch that adds the
+            # OTel agent alongside the NR agent.
             - name: JAVA_TOOL_OPTIONS
-              value: "-javaagent:/newrelic/newrelic.jar -javaagent:/otel/opentelemetry-javaagent.jar"
+              value: "-javaagent:/newrelic/newrelic.jar"
             - name: NEW_RELIC_APP_NAME
               value: "petclinic-k8s"
             - name: NEW_RELIC_DISTRIBUTED_TRACING_ENABLED
               value: "true"
-            - name: OTEL_SERVICE_NAME
-              value: "petclinic-k8s"
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://otel-collector.monitoring.svc.cluster.local:4318"
-            - name: OTEL_EXPORTER_OTLP_PROTOCOL
-              value: "http/protobuf"
-            - name: OTEL_LOGS_EXPORTER
-              value: otlp
-            - name: OTEL_METRICS_EXPORTER
-              value: otlp
-            - name: OTEL_TRACES_EXPORTER
-              value: otlp
-            - name: OTEL_RESOURCE_ATTRIBUTES
-              value: "deployment.environment=production,service.language=java"
           resources:
             requests:
               memory: "512Mi"
@@ -148,8 +123,6 @@ spec:
               readOnly: true
             - name: newrelic-agent
               mountPath: /newrelic
-            - name: otel-agent
-              mountPath: /otel
       volumes:
         - name: binding
           projected:
@@ -157,6 +130,4 @@ spec:
               - secret:
                   name: demo-db
         - name: newrelic-agent
-          emptyDir: {}
-        - name: otel-agent
           emptyDir: {}

@@ -14,9 +14,9 @@ metadata:
   namespace: monitoring
 type: Opaque
 stringData:
-  username: "default"
-  password: "password"
-  database: "otel"
+  username: "${CLICKHOUSE_USERNAME}"
+  password: "${CLICKHOUSE_PASSWORD}"
+  database: "${CLICKHOUSE_DATABASE}"
 
 ---
 apiVersion: v1
