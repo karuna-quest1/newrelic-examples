@@ -58,6 +58,8 @@ metadata:
     app: clickhouse
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: clickhouse
@@ -98,10 +100,10 @@ spec:
               subPath: listen_host.xml
           resources:
             requests:
-              memory: "512Mi"
+              memory: "1Gi"
               cpu: "250m"
             limits:
-              memory: "1Gi"
+              memory: "4Gi"
               cpu: "500m"
           livenessProbe:
             httpGet:
