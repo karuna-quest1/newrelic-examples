@@ -1,0 +1,122 @@
+---
+# HyperDX — the ClickStack UI + API.
+#
+# Reads telemetry from ClickHouse (the otel-collector writes it there) and
+# stores its own application state in MongoDB. This is the pod that serves the
+# dashboards/alerts UI and the /api/v2 endpoints the shinro CLI's
+# `migrate --alerts --push` posts converted dashboards + alerts to.
+#
+# Ports:
+#   8080  UI          (browser)
+#   8000  API / OpAMP (POST /api/v2/dashboards, /api/v2/alerts)
+#
+# It depends on both `clickhouse` and `mongodb` Services in this namespace, so
+# apply clickhouse.yml and mongodb.yml first.
+#
+# The ClickHouse user/password/database are pulled from the same
+# `clickhouse-credentials` Secret the ClickHouse Deployment uses, so the two
+# never drift. Other values mirror the docker-compose ClickStack setup.
+#
+# Access from your machine (kind maps no NodePorts to the host):
+#   kubectl -n monitoring port-forward svc/hyperdx 8080:8080   # UI  → http://localhost:8080
+#   kubectl -n monitoring port-forward svc/hyperdx 8000:8000   # API → http://localhost:8000
+# Then for the CLI push:  HYPERDX_API_URL=http://localhost:8000
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: hyperdx
+  namespace: monitoring
+  labels:
+    app: hyperdx
+spec:
+  selector:
+    app: hyperdx
+  ports:
+    - name: ui
+      port: 8080
+      targetPort: 8080
+    - name: api
+      port: 8000
+      targetPort: 8000
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hyperdx
+  namespace: monitoring
+  labels:
+    app: hyperdx
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hyperdx
+  template:
+    metadata:
+      labels:
+        app: hyperdx
+    spec:
+      containers:
+        - name: hyperdx
+          image: hyperdx/hyperdx:latest
+          env:
+            # ── Telemetry backend (the existing in-cluster ClickHouse) ──────────
+            - name: CLICKHOUSE_HOST
+              value: "clickhouse"
+            - name: CLICKHOUSE_PORT
+              value: "9000"
+            - name: CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-credentials
+                  key: username
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-credentials
+                  key: password
+            - name: CLICKHOUSE_DB
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-credentials
+                  key: database
+            # ── Application state (MongoDB) ─────────────────────────────────────
+            - name: MONGO_URI
+              value: "mongodb://mongodb:27017/hyperdx"
+            - name: NODE_ENV
+              value: "production"
+          ports:
+            - name: ui
+              containerPort: 8080
+            - name: api
+              containerPort: 8000
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          # HyperDX takes a while to boot (migrations + first-run setup), so the
+          # probes are lenient and TCP-based to avoid crash-loop flapping.
+          startupProbe:
+            tcpSocket:
+              port: ui
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            tcpSocket:
+              port: ui
+            periodSeconds: 15
+            failureThreshold: 6
+          readinessProbe:
+            tcpSocket:
+              port: ui
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6

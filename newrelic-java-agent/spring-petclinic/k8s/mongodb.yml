@@ -1,0 +1,98 @@
+---
+# MongoDB — metadata store for HyperDX.
+#
+# HyperDX keeps all of its application state here: users, sources, ClickHouse
+# connections, saved searches, dashboards, alerts and notification webhooks.
+# ClickHouse holds the telemetry; MongoDB holds everything HyperDX renders on
+# top of it. Without this pod HyperDX cannot start (MONGO_URI is required).
+#
+# Native port: 27017  (HyperDX connects via mongodb://mongodb:27017/hyperdx)
+#
+# Matches the docker-compose ClickStack setup (image mongo:6) so configs stay
+# consistent between local Docker and this cluster.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: monitoring
+  labels:
+    app: mongodb
+spec:
+  selector:
+    app: mongodb
+  ports:
+    - name: mongo
+      port: 27017
+      targetPort: 27017
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: monitoring
+  labels:
+    app: mongodb
+spec:
+  replicas: 1
+  # Recreate (not RollingUpdate): a single RWO volume can't be mounted by two
+  # pods at once, so the old pod must terminate before the new one starts.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:6
+          ports:
+            - name: mongo
+              containerPort: 27017
+          volumeMounts:
+            - name: mongodb-data
+              mountPath: /data/db
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            tcpSocket:
+              port: mongo
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - mongosh
+                - --quiet
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+      volumes:
+        - name: mongodb-data
+          persistentVolumeClaim:
+            claimName: mongodb-data
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-data
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
